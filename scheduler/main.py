@@ -1,0 +1,32 @@
+# - outreach_automation_api/scheduler/main.py -
+
+import os
+import asyncio
+
+from config import APPCFG, APICFG
+from services import ECHO, configure_logging
+from services import MONGO, RABBIT
+
+configure_logging(
+    log_level = APICFG["LOG_LEVEL"],
+    dev = APPCFG["DEV_MODE"]
+)
+
+async def main():
+    try:
+        await MONGO.connect()
+        await RABBIT.connect()
+    except RuntimeError:
+        ECHO.error("Resource initialization failed")
+        os._exit(1)
+
+    try:
+        # await run_scheduler_loop()
+        pass
+    
+    finally:
+        await MONGO.close()
+        await RABBIT.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
