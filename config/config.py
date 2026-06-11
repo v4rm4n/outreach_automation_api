@@ -22,7 +22,8 @@ APICFG = {
 }
 
 AUTHCFG = {
-    "JWT_SECRET": os.getenv("JWT_SECRET", "super-secret-key-change-in-prod"),
+    # openssl rand -hex 32
+    "JWT_SECRET": os.getenv("JWT_SECRET", "cda15d346583947f309aae95a0adf787e00ee2cdc1b073804bdfe3a4896ae1ae"),
     "JWT_ALGORITHM": "HS256",
     "JWT_EXPIRE_MINUTES": 60 * 24 * 7,
     "JWT_REFRESH_EXPIRE_MINUTES": 60 * 24 * 30,

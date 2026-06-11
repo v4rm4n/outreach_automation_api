@@ -1,25 +1,21 @@
 # - outreach_automation_api/api/auth/router.py -
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
+from pymongo.errors import DuplicateKeyError
 
 from services import ECHO, MONGO
-from shared.models.user import *
+from shared.models.user import UserCreate, UserDocument, UserResponse, LoginRequest, LoginResponse
 from shared.security import hash_password
-
 from .auth_service import auth_service
 
-api_router = APIRouter(
+router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
 
-@api_router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: UserCreate):
     users = MONGO.get_collection("users")
-    
-    existing = await users.find_one({"email": request.email})
-    if existing:
-        raise HTTPException(status_code=409, detail="Email already registered")
     
     doc = UserDocument(
         email=request.email,
@@ -27,9 +23,17 @@ async def register(request: UserCreate):
         hashed_password=hash_password(request.password)
     )
 
-    result = await users.insert_one(doc.model_dump(by_alias=True, exclude={"id"}))
+    try:
+        # Rely on database level unique constraint atomicity
+        result = await users.insert_one(doc.model_dump(by_alias=True, exclude={"id"}))
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, 
+            detail="Email already registered"
+        )
     
     ECHO.debug(f"Inserted user with id: {result.inserted_id}")
+    
     return UserResponse(
         _id=str(result.inserted_id),
         email=doc.email,
@@ -39,11 +43,14 @@ async def register(request: UserCreate):
         created_at=doc.created_at
     )
 
-@api_router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
     user = await auth_service.authenticate_user(request.email, request.password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid credentials"
+        )
     
     token = auth_service.create_token(str(user.id), user.role.value)
     return LoginResponse(

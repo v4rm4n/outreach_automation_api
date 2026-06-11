@@ -1,0 +1,35 @@
+info:
+  name: add creator -- exhaustive
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{base_url}}/creators"
+  body:
+    type: json
+    data: |-
+      {
+        "handle": "glossy_priya",
+        "platform": "instagram",
+        "email": "priya.collabs@example.com",
+        "full_name": "Priya Sharma",
+        "niche": "skincare",
+        "followers": 150000,
+        "region": "IN",
+        "language": "en",
+        "tags": [
+          "beauty",
+          "lifestyle"
+        ],
+        "profile_url": "https://instagram.com/glossy_priya"
+      }
+  auth:
+    type: bearer
+    token: "{{auth_tok}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,24 @@
+info:
+  name: bulk ops -- csv upload
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{base_url}}/creators/bulk"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - C:\Users\v4rm4n\Personal\outreach_automation_api\tests\creators.csv
+  auth:
+    type: bearer
+    token: "{{auth_tok}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

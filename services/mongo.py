@@ -46,32 +46,33 @@ class MongoManager:
         
         db = self.get_db()
         
-        # users
+        # 1. Users Layer
         await db["users"].create_index("email", unique=True)
         
-        # campaigns
-        await db["campaigns"].create_index("owner_id")
+        # 2. Campaigns Layer (Compound to optimize dashboard fetches sorted by latest)
+        await db["campaigns"].create_index([("user_id", 1), ("created_at", -1)])
         
-        # creators
-        await db["creators"].create_index("handle", unique=True)
+        # 3. Creators Layer (Enables identical handles on different social media channels)
+        await db["creators"].create_index([("handle", 1), ("platform", 1)], unique=True)
         
-        # templates
-        await db["templates"].create_index("owner_id")
+        # 4. Templates Layer 
+        await db["templates"].create_index("user_id")
         
-        # messages
+        # 5. Messages / Log State Layer
         await db["messages"].create_index([("status", 1), ("scheduled_at", 1)])
         await db["messages"].create_index("campaign_id")
-        await db["messages"].create_index("creator_id")
         
-        # dispatch_jobs
-        await db["dispatch_jobs"].create_index("campaign_id")
+        # 6. Dispatch Jobs (CRITICAL: DB-level Idempotency circuit breaker)
+        await db["dispatch_jobs"].create_index(
+            [("campaign_id", 1), ("creator_id", 1)], 
+            unique=True
+        )
         await db["dispatch_jobs"].create_index("status")
         
-        # critical_alerts
-        await db["critical_alerts"].create_index("campaign_id")
-        await db["critical_alerts"].create_index("created_at")
+        # 7. Operational Health Layer (Compound index for time-window alert sorting)
+        await db["critical_alerts"].create_index([("campaign_id", 1), ("created_at", -1)])
         
-        ECHO.info("MongoDB indexes created")
+        ECHO.info("MongoDB structural and uniqueness indexes created successfully")
 
 
     def get_db(self):

@@ -14,6 +14,7 @@ from services import MONGO, REDIS, RABBIT
 
 # Import sub-routers
 from .auth import auth_router
+from .creators import creator_router
 
 configure_logging(
     log_level = APPCFG["LOG_LEVEL"],
@@ -57,6 +58,7 @@ async def root():
     return f"Outreach Automation API v{APPCFG["VERSION"]}"
 
 app.include_router(auth_router)
+app.include_router(creator_router)
 
 if __name__ == "__main__":
     uvicorn.run(

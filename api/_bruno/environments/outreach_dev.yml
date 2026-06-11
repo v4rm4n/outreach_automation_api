@@ -2,3 +2,5 @@ name: outreach_dev
 variables:
   - name: base_url
     value: http://localhost:8000
+  - name: auth_tok
+    value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTJhNWMxZTJhNjRlNmYxMzEzYTM0MmMiLCJyb2xlIjoidXNlciIsImlhdCI6MTc4MTE2MDk5NywiZXhwIjoxNzgxNzY1Nzk3fQ.MYSOUkxmau6v_q8i4PF59jXNX1Ml9aHemvBlSkpd8jo

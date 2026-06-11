@@ -2,18 +2,21 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 from config import AUTHCFG
 from services import ECHO, MONGO
-
 from shared.models.user import UserDocument
 from shared.security import verify_password
 
 security = HTTPBearer()
+
+class TokenPayload(BaseModel):
+    sub: str  # user_id
+    role: str
 
 class AuthService:
     def __init__(self):
@@ -30,13 +33,14 @@ class AuthService:
         }
         return jwt.encode(payload, self.secret, algorithm=self.algorithm)
 
-    def verify_token(self, token: str) -> Optional[dict]:
+    def verify_token(self, token: str) -> Optional[TokenPayload]:
         try:
-            return jwt.decode(token, self.secret, algorithms=[self.algorithm])
+            decoded = jwt.decode(token, self.secret, algorithms=[self.algorithm])
+            return TokenPayload(**decoded)
         except jwt.ExpiredSignatureError:
             ECHO.warning("auth: token expired")
             return None
-        except jwt.InvalidTokenError:
+        except (jwt.InvalidTokenError, Exception):
             ECHO.warning("auth: invalid token")
             return None
 
@@ -52,7 +56,7 @@ class AuthService:
     async def get_current_user(
         self,
         credentials: HTTPAuthorizationCredentials = Depends(security)
-    ) -> dict:
+    ) -> TokenPayload:
         payload = self.verify_token(credentials.credentials)
         if not payload:
             raise HTTPException(
@@ -60,7 +64,6 @@ class AuthService:
                 detail="Invalid or expired token",
                 headers={"WWW-Authenticate": "Bearer"}
             )
-        return payload  # {"sub": user_id, "role": role}
-
+        return payload
 
 auth_service = AuthService()
