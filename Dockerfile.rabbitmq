@@ -1,0 +1,13 @@
+FROM rabbitmq:3.13-management
+
+# Download the delayed message exchange plugin (.ez file) directly from the official RabbitMQ GitHub
+# Note: Ensure the plugin version matches your RabbitMQ base image version (3.13.x)
+RUN apt-get update && apt-get install -y wget unzip \
+    && wget https://github.com/rabbitmq/rabbitmq-delayed-message-exchange/releases/download/v3.13.0/rabbitmq_delayed_message_exchange-3.13.0.ez \
+    -O $RABBITMQ_HOME/plugins/rabbitmq_delayed_message_exchange-3.13.0.ez
+
+# Enable the plugin offline so it starts up with the server
+RUN rabbitmq-plugins enable --offline rabbitmq_delayed_message_exchange
+
+# Clean up
+RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean

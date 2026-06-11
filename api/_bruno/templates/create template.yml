@@ -1,0 +1,24 @@
+info:
+  name: create template
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{base_url}}/templates"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Summer Skincare Collab 2026",
+        "body": "Hi {{full_name}},\n\nI absolutely loved your recent posts about {{niche}}! Your content on @{{handle}} is exactly the kind of vibe we are looking for at GlowBeauty.\n\nWe are launching a new summer line and would love to send you some free PR packages to test out. Let me know if you are open to collaborating!\n\nBest,\nThe GlowBeauty Team"
+      }
+  auth:
+    type: bearer
+    token: "{{auth_tok}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

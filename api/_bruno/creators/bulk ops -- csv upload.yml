@@ -12,7 +12,7 @@ http:
       - name: file
         type: file
         value:
-          - C:\Users\v4rm4n\Personal\outreach_automation_api\tests\creators.csv
+          - C:\Users\v4rm4n\Personal\outreach_automation_api\tests\test_assets\creators.csv
   auth:
     type: bearer
     token: "{{auth_tok}}"

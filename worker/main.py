@@ -4,8 +4,8 @@ import os
 import asyncio
 
 from config import APPCFG, APICFG
-from services import configure_logging, ECHO
-from services import MONGO, RABBIT, REDIS
+from services import configure_logging, load_topology_config
+from services import ECHO, MONGO, RABBIT, REDIS
 
 configure_logging(
     log_level = APICFG["LOG_LEVEL"],
@@ -16,6 +16,8 @@ async def main():
     try:
         await MONGO.connect()
         await RABBIT.connect()
+        topology_cfg = load_topology_config("topology.yaml")
+        await RABBIT.setup_topology(topology_cfg)
         await REDIS.connect()
     except RuntimeError:
         ECHO.error("Resource initialization failed")

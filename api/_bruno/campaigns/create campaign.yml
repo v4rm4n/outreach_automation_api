@@ -1,0 +1,25 @@
+info:
+  name: create campaign
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{base_url}}/campaigns"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Lakme Collab 2026",
+        "template_id": "6a2a902d2f11b36cadd90ef8",
+        "priority": 3
+      }
+  auth:
+    type: bearer
+    token: "{{auth_tok}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

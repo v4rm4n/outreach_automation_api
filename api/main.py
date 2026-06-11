@@ -9,12 +9,14 @@ from fastapi import FastAPI
 # from fastapi.middleware.cors import CORSMiddleware
 
 from config import APPCFG, APICFG
-from services import configure_logging, ECHO
-from services import MONGO, REDIS, RABBIT
+from services import load_topology_config, configure_logging
+from services import ECHO, REDIS, MONGO, RABBIT
 
 # Import sub-routers
 from .auth import auth_router
 from .creators import creator_router
+from .templates import templates_router
+from .campaigns import campaigns_router
 
 configure_logging(
     log_level = APPCFG["LOG_LEVEL"],
@@ -28,6 +30,8 @@ async def lifespan(_app: FastAPI):
         await MONGO.connect()
         await MONGO.create_indexes()
         await RABBIT.connect()
+        topology_cfg = load_topology_config("topology.yaml")
+        await RABBIT.setup_topology(topology_cfg)
     except RuntimeError:
         ECHO.error("Resource initialization failed")
         os._exit(1)
@@ -59,6 +63,8 @@ async def root():
 
 app.include_router(auth_router)
 app.include_router(creator_router)
+app.include_router(templates_router)
+app.include_router(campaigns_router)
 
 if __name__ == "__main__":
     uvicorn.run(

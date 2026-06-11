@@ -1,0 +1,17 @@
+# - outreach_automation_api/topology.yaml -
+
+exchanges:
+  - name: "outreach.delayed"
+    kind: "x-delayed-message"
+    arguments:
+      x-delayed-type: "direct"
+
+queues:
+  - name: "dispatch_jobs"
+    queue_type: "classic"
+
+bindings:
+  - source: "outreach.delayed"
+    destination: "dispatch_jobs"
+    destination_type: "queue"
+    routing_key: "campaign.dispatch"
