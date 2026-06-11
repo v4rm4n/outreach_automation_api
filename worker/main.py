@@ -21,6 +21,7 @@ async def main():
         ECHO.error("Resource initialization failed")
         os._exit(1)
     try:
+        ECHO.info("`main` routine initiated!")
         # await run_worker_loop()
         pass
     finally:

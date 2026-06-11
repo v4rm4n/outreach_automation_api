@@ -29,4 +29,4 @@ def configure_logging(log_level: str, dev: bool = False) -> None:
 
     logging.basicConfig(level=level)
 
-ECHO: structlog.stdlib.BoundLogger = structlog.get_logger("ch355")
+ECHO: structlog.stdlib.BoundLogger = structlog.get_logger("outreachapi")

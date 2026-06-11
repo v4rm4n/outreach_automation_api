@@ -40,6 +40,40 @@ class MongoManager:
             self.client.close()
             self.connected = False
 
+    async def create_indexes(self):
+        if not self.connected:
+            raise RuntimeError("Not connected to MongoDB")
+        
+        db = self.get_db()
+        
+        # users
+        await db["users"].create_index("email", unique=True)
+        
+        # campaigns
+        await db["campaigns"].create_index("owner_id")
+        
+        # creators
+        await db["creators"].create_index("handle", unique=True)
+        
+        # templates
+        await db["templates"].create_index("owner_id")
+        
+        # messages
+        await db["messages"].create_index([("status", 1), ("scheduled_at", 1)])
+        await db["messages"].create_index("campaign_id")
+        await db["messages"].create_index("creator_id")
+        
+        # dispatch_jobs
+        await db["dispatch_jobs"].create_index("campaign_id")
+        await db["dispatch_jobs"].create_index("status")
+        
+        # critical_alerts
+        await db["critical_alerts"].create_index("campaign_id")
+        await db["critical_alerts"].create_index("created_at")
+        
+        ECHO.info("MongoDB indexes created")
+
+
     def get_db(self):
         if not self.connected or self.db is None:
             raise RuntimeError("Not connected to MongoDB")

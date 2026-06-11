@@ -21,7 +21,7 @@ async def main():
         os._exit(1)
 
     try:
-        # await run_scheduler_loop()
+        ECHO.info("`main` routine initiated!")
         pass
     
     finally:
