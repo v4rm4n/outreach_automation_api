@@ -13,6 +13,8 @@ APPCFG = {
     "VERSION": "0.1.0",
     "LOG_LEVEL": validators.logging.log_level("LOG_LEVEL", "INFO"),
     "DEV_MODE":  validators.common.boolean("DEV_MODE", True),
+    "IG_USERNAME": os.getenv("IG_USERNAME", "cherry_pie"),
+    "IG_PASSWORD": os.getenv("IG_PASSWORD", "perry_chie"),
 }
 
 APICFG = {

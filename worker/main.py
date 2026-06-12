@@ -7,10 +7,11 @@ import json
 from datetime import datetime, timezone
 from bson import ObjectId
 
-from config import APPCFG, APICFG
+from config import APPCFG
 from services import configure_logging, load_topology_config
 from services.redis import check_instagram_rate_limit
-from services import ECHO, MONGO, RABBIT, REDIS
+from services import ECHO, MONGO, RABBIT, REDIS, HTTP
+from integrations import INSTAGRAM
 
 configure_logging(
     log_level=APPCFG["LOG_LEVEL"],
@@ -110,7 +111,10 @@ async def process_campaign_batch(message):
                     # Uncomment this line to test the DLQ retry logic!
                     # raise ConnectionError("Fake Instagram API Timeout!") 
                     
-                    await asyncio.sleep(0.5) # Simulating network IO
+                    await INSTAGRAM.send_direct_message(
+                        handle=creator.get('handle'), 
+                        text=final_message
+                    )
                     
                     # Atomic Success Update
                     # We include "status": "pending" in the filter to prevent race conditions
@@ -192,6 +196,7 @@ async def main():
         topology_cfg = load_topology_config("topology.yaml")
         await RABBIT.setup_topology(topology_cfg)
         await REDIS.connect()
+        await HTTP.initialize()
     except RuntimeError:
         ECHO.error("Resource initialization failed")
         os._exit(1)
@@ -203,6 +208,7 @@ async def main():
         await MONGO.close()
         await RABBIT.close()
         await REDIS.close()
+        await HTTP.close()
     
 if __name__ == "__main__":
     try:
