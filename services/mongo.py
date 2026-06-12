@@ -63,11 +63,10 @@ class MongoManager:
         await db["messages"].create_index("campaign_id")
         
         # 6. Dispatch Jobs (CRITICAL: DB-level Idempotency circuit breaker)
-        await db["dispatch_jobs"].create_index(
-            [("campaign_id", 1), ("creator_id", 1)], 
-            unique=True
-        )
         await db["dispatch_jobs"].create_index("status")
+        await db["dispatch_jobs"].create_index(
+            [("campaign_id", 1), ("creator_id", 1)]
+        )
         
         # 7. Operational Health Layer (Compound index for time-window alert sorting)
         await db["critical_alerts"].create_index([("campaign_id", 1), ("created_at", -1)])

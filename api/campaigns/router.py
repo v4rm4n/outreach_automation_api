@@ -81,16 +81,13 @@ async def add_creators_to_campaign(
     target_time = request.scheduled_for if request.scheduled_for else datetime.now(timezone.utc)
     
     job_operations = []
-    job_ids = []
-    
+
     # Grab priority from the parent campaign
     campaign_priority = campaign.get("priority", 0)
     
+    job_ops_with_ids = []
     for cid in creator_object_ids:
-        # Cast ObjectId to string immediately so Pydantic's PyObjectId parser is happy
         job_id_str = str(ObjectId())
-        job_ids.append(job_id_str)
-        
         job = DispatchJobDocument(
             _id=job_id_str,
             campaign_id=campaign_id,
@@ -99,15 +96,19 @@ async def add_creators_to_campaign(
             status=DispatchStatus.PENDING,
             priority=campaign_priority
         )
-        job_operations.append(InsertOne(job.model_dump(by_alias=True)))
+        job_ops_with_ids.append((job_id_str, InsertOne(job.model_dump(by_alias=True))))
+
+    job_operations = [op for _, op in job_ops_with_ids]
+    successful_job_ids = [jid for jid, _ in job_ops_with_ids]
+    inserted_count = 0
 
     if job_operations:
-        inserted_count = 0
         try:
             result = await db["dispatch_jobs"].bulk_write(job_operations, ordered=False)
             inserted_count = result.inserted_count
         except BulkWriteError as bwe:
-            # Captures the exact number of successful inserts before the duplicates failed
+            failed_indices = {err["index"] for err in bwe.details.get("writeErrors", [])}
+            successful_job_ids = [jid for i, (jid, _) in enumerate(job_ops_with_ids) if i not in failed_indices]
             inserted_count = bwe.details.get('nInserted', 0)
             ECHO.warning(f"Ignored {len(job_operations) - inserted_count} duplicate creators.")
 
@@ -120,30 +121,30 @@ async def add_creators_to_campaign(
                 }
             )
 
-    delay_ms = 0
-    if request.scheduled_for:
-        now = datetime.now(timezone.utc)
-        if request.scheduled_for > now:
-            delay_ms = int((request.scheduled_for - now).total_seconds() * 1000)
+            delay_ms = 0
+            if request.scheduled_for:
+                now = datetime.now(timezone.utc)
+                if request.scheduled_for > now:
+                    delay_ms = int((request.scheduled_for - now).total_seconds() * 1000)
 
-    try:
-        await RABBIT.publish_task(
-            exchange_name="outreach.delayed",
-            routing_key="campaign.dispatch",
-            payload={
-                "campaign_id": campaign_id,
-                "job_ids": job_ids,
-                "priority": campaign_priority
-            },
-            delay_ms=delay_ms
-        )
-        ECHO.info(f"Added {len(job_ids)} jobs to Campaign {campaign_id}. RMQ Delay: {delay_ms}ms.")
-    except Exception as e:
-        ECHO.error(f"Failed to publish to RMQ: {e}")
+            try:
+                await RABBIT.publish_task(
+                    exchange_name="outreach.delayed",
+                    routing_key="campaign.dispatch",
+                    payload={
+                        "campaign_id": campaign_id,
+                        "job_ids": successful_job_ids,
+                        "priority": campaign_priority
+                    },
+                    delay_ms=delay_ms
+                )
+                ECHO.info(f"Added {inserted_count} jobs to Campaign {campaign_id}. RMQ Delay: {delay_ms}ms.")
+            except Exception as e:
+                ECHO.error(f"Failed to publish to RMQ: {e}")
 
     return {
         "status": "success", 
         "campaign_id": campaign_id, 
-        "jobs_staged": len(job_ids),
+        "jobs_staged": inserted_count,
         "scheduled_for": target_time
     }

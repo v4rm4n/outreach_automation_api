@@ -9,10 +9,11 @@ from bson import ObjectId
 
 from config import APPCFG, APICFG
 from services import configure_logging, load_topology_config
+from services.redis import check_instagram_rate_limit
 from services import ECHO, MONGO, RABBIT, REDIS
 
 configure_logging(
-    log_level=APICFG["LOG_LEVEL"],
+    log_level=APPCFG["LOG_LEVEL"],
     dev=APPCFG["DEV_MODE"]
 )
 
@@ -42,12 +43,10 @@ async def process_campaign_batch(message):
                 return
 
             db = MONGO.get_db()
-            job_object_ids = [ObjectId(jid) for jid in job_id_strs]
-
+            
             # 1. Fetch only "pending" jobs. This ensures IDEMPOTENCY.
-            # If RMQ accidentally delivers this twice, we won't double-send.
             pending_jobs = await db["dispatch_jobs"].find({
-                "_id": {"$in": job_object_ids},
+                "_id": {"$in": job_id_strs}, # <-- Pass the string array directly!
                 "status": "pending"
             }).to_list(length=None)
 
@@ -73,6 +72,9 @@ async def process_campaign_batch(message):
             ECHO.info(f"Processing {len(pending_jobs)} jobs for Campaign {campaign_id}...")
 
             # 4. The Dispatch Loop
+            MAX_RETRIES = 3
+            RETRY_DELAY_MS = 5 * 60 * 1000  # 5 minutes in milliseconds
+
             for job in pending_jobs:
                 job_id = job["_id"]
                 creator = creators_map.get(job["creator_id"])
@@ -87,15 +89,27 @@ async def process_campaign_batch(message):
 
                 # Generate the final string
                 final_message = render_template(template_body, creator)
+                current_retries = job.get("retry_count", 0)
 
                 try:
                     # ==========================================
-                    # TODO: 1. Await Redis Token Bucket Check Here
-                    # TODO: 2. Await Instagram API Dispatch Here
+                    # 1. Redis Token Bucket Rate Limiter
                     # ==========================================
+                    allowed = False
+                    while not allowed:
+                        allowed = await check_instagram_rate_limit(limit=20, window_sec=60)
+                        if not allowed:
+                            ECHO.warning(f"Rate limit reached. Throttling {creator.get('handle')} for 5 seconds...")
+                            await asyncio.sleep(5) # Pause this specific task and try again
+
+                    # ==========================================
+                    # 2. Instagram API Dispatch (Simulated)
+                    # ==========================================
+                    ECHO.info(f"--> Sending to @{creator.get('handle')} (Attempt {current_retries + 1}/{MAX_RETRIES + 1}): {final_message[:30]}...")
                     
-                    # SIMULATED SEND (Replace later)
-                    ECHO.debug(f"--> Sending to @{creator.get('handle')}: {final_message[:30]}...")
+                    # Uncomment this line to test the DLQ retry logic!
+                    # raise ConnectionError("Fake Instagram API Timeout!") 
+                    
                     await asyncio.sleep(0.5) # Simulating network IO
                     
                     # Atomic Success Update
@@ -107,17 +121,49 @@ async def process_campaign_batch(message):
                             "processed_at": datetime.now(timezone.utc)
                         }}
                     )
-                except Exception as dispatch_err:
-                    # Only fail this specific message, don't crash the batch!
-                    ECHO.error(f"Failed to send to {creator.get('handle')}: {dispatch_err}")
-                    await db["dispatch_jobs"].update_one(
-                        {"_id": job_id},
-                        {"$set": {
-                            "status": "failed", 
-                            "error_message": str(dispatch_err)
-                        }}
-                    )
 
+                except Exception as dispatch_err:
+                    if current_retries < MAX_RETRIES:
+                        ECHO.warning(f"Transient error for {creator.get('handle')}. Retrying in 5 mins. Error: {dispatch_err}")
+                        
+                        # Increment DB Retry Counter
+                        await db["dispatch_jobs"].update_one(
+                            {"_id": job_id},
+                            {"$inc": {"retry_count": 1}}
+                        )
+                        
+                        # Push back to RMQ Delayed Exchange with Backoff
+                        await RABBIT.publish_task(
+                            exchange_name="outreach.delayed",
+                            routing_key="campaign.dispatch",
+                            payload={"campaign_id": campaign_id, "job_ids": [str(job_id)]}, 
+                            delay_ms=RETRY_DELAY_MS
+                        )
+                    else:
+                        ECHO.error(f"Max retries exhausted for {creator.get('handle')}. Routing to DLX.")
+                        
+                        # Mark permanent failure in DB
+                        await db["dispatch_jobs"].update_one(
+                            {"_id": job_id},
+                            {"$set": {
+                                "status": "failed", 
+                                "error_message": str(dispatch_err)
+                            }}
+                        )
+                        
+                        # Push "Poison Pill" to Dead Letter Exchange
+                        await RABBIT.publish_task(
+                            exchange_name="outreach.dlx",
+                            routing_key="dispatch.failed",
+                            payload={
+                                "job_id": str(job_id),
+                                "campaign_id": campaign_id,
+                                "creator": creator.get('handle'),
+                                "error": str(dispatch_err),
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }
+                        )
+            
             ECHO.info(f"Batch completed for Campaign {campaign_id}.")
 
         except Exception as e:
@@ -135,7 +181,7 @@ async def run_worker_loop():
         await channel.set_qos(prefetch_count=10)
         queue = await channel.get_queue("dispatch_jobs", ensure=False)
         
-        ECHO.info("[cyan]Worker is actively listening to 'dispatch_jobs' queue...[/]")
+        ECHO.info("Worker is actively listening to 'dispatch_jobs' queue...[/]")
         await queue.consume(process_campaign_batch)
         await asyncio.Future() 
 
@@ -159,4 +205,7 @@ async def main():
         await REDIS.close()
     
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        ECHO.info("Worker shutdown requested, exiting cleanly.")

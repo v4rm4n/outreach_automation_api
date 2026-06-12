@@ -8,16 +8,16 @@ http:
   url: "{{base_url}}/campaigns/:campaign_id/creators"
   params:
     - name: campaign_id
-      value: 6a2adc388ee5f5c55327704c
+      value: 6a2bb1cf99f551fd08547ca4
       type: path
   body:
     type: json
     data: |-
       {
         "creator_ids": [
-          "6a2ad9ed887c7206c074fc1d"
+          "6a2bb1c3016ed217a7399fc0"
         ],
-        "scheduled_for": "2026-06-11T20:50:00+05:30"
+        "scheduled_for": "2026-06-12T12:46:00+05:30"
       }
   auth:
     type: bearer
