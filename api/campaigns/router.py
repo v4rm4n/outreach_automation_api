@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
 from pymongo import InsertOne
+from pymongo.errors import BulkWriteError
 from datetime import datetime, timezone
 
 from api.auth.auth_service import auth_service, TokenPayload
@@ -101,17 +102,23 @@ async def add_creators_to_campaign(
         job_operations.append(InsertOne(job.model_dump(by_alias=True)))
 
     if job_operations:
+        inserted_count = 0
         try:
-            await db["dispatch_jobs"].bulk_write(job_operations, ordered=False)
+            result = await db["dispatch_jobs"].bulk_write(job_operations, ordered=False)
+            inserted_count = result.inserted_count
+        except BulkWriteError as bwe:
+            # Captures the exact number of successful inserts before the duplicates failed
+            inserted_count = bwe.details.get('nInserted', 0)
+            ECHO.warning(f"Ignored {len(job_operations) - inserted_count} duplicate creators.")
+
+        if inserted_count > 0:
             await db["campaigns"].update_one(
                 {"_id": ObjectId(campaign_id)},
                 {
-                    "$inc": {"total_creators": len(job_operations)},
+                    "$inc": {"total_creators": inserted_count},
                     "$set": {"status": CampaignStatus.ACTIVE.value}
                 }
             )
-        except Exception as e:
-            ECHO.warning(f"Some creators were already in the campaign or failed: {e}")
 
     delay_ms = 0
     if request.scheduled_for:

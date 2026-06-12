@@ -11,7 +11,7 @@ http:
     data: |-
       {
         "name": "Lakme Collab 2026",
-        "template_id": "6a2a902d2f11b36cadd90ef8",
+        "template_id": "6a2ad9fb8ee5f5c55327704a",
         "priority": 3
       }
   auth:

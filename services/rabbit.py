@@ -62,6 +62,11 @@ class RabbitManager:
             )
             ECHO.debug(f"Published to '{exchange_name}' with key '{routing_key}' (Delay: {delay_ms}ms)")
 
+    def get_channel_pool(self) -> Pool:
+        if not self.channel_pool:
+            raise RuntimeError("Not connected to RabbitMQ")
+        return self.channel_pool
+
     async def _maintain_connection(self):
         """Background task to monitor connection state."""
         while not self._stop_event.is_set():

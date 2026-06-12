@@ -5,9 +5,15 @@ exchanges:
     kind: "x-delayed-message"
     arguments:
       x-delayed-type: "direct"
+  # DLX
+  - name: "outreach.dlx"
+    kind: "direct"
 
 queues:
   - name: "dispatch_jobs"
+    queue_type: "classic"
+  # Dead Letter Queue
+  - name: "dead_letters"
     queue_type: "classic"
 
 bindings:
@@ -15,3 +21,8 @@ bindings:
     destination: "dispatch_jobs"
     destination_type: "queue"
     routing_key: "campaign.dispatch"
+  # Bind DLQ to DLX
+  - source: "outreach.dlx"
+    destination: "dead_letters"
+    destination_type: "queue"
+    routing_key: "dispatch.failed"
